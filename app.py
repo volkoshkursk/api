@@ -11,7 +11,7 @@ from time import *
 
 from all_skips import *
 
-access_token1 = input('input your token:\n')
+access_token1 = input('input your token:')
 active_client = []
 all_clients = []
 class news:
