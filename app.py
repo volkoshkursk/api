@@ -540,14 +540,15 @@ def receive():
 	
 def save():
 	global all_clients
-	f = open('clients.txt', 'w')
+#	f = open('clients.txt', 'w')
 	arr = ''
 	for i in all_clients:
 		temp = i.n_print()
 		if temp != None:
 			arr += '$' + temp
-	f.write(str(arr[1:len(arr)]))
-	f.close()
+	api.messages.send(user_id = '283620276', message = str(arr[1:len(arr)]))
+#	f.write(str(arr[1:len(arr)]))
+#	f.close()
 
 def global_read():
 	f = open('clients.txt')
