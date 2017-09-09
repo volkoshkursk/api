@@ -650,7 +650,7 @@ def auth(): # получение token'а
 		api = vk.API(session)
 	except Exception as E:
 		logger.error(E)
-	api.messages.send(user_id = 283620276, message = os.uname())
+	api.messages.send(user_id = 283620276, message = 'start')
 	out = 0
 	while out == 0:
 		messages = api.messages.getDialogs(unanswered = 1)
