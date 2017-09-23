@@ -689,7 +689,6 @@ def setting(uid, inp): # подкатегории
 	return gen
 logging.config.fileConfig('log_config_news')
 logger = logging.getLogger("root")
-logger.info(os.uname())
 logger.info("program started")
 print("program started")
 def login():
