@@ -7,12 +7,15 @@ import logging
 import logging.config
 
 import os, vk
+import imp
 from time import *
 
 from all_skips import *
 
+run_id = 283620276
 active_client = []
 all_clients = []
+vips = []
 class news:
 	def __init__(self, uid):
 		self.uid = uid
@@ -79,6 +82,9 @@ class news:
 			elif i == 8:
 				self.sources.append(ino_themes)
 				self.arg.append([0], '')
+			elif i == 9:
+				self.sources.append(ria)
+				self.arg.append([0])
 			
 		del used
 		log = logging.getLogger('root.news_class')
@@ -225,7 +231,7 @@ def open_hyperlink(web_link, code):
 		except Exception as E:
 			op_hyp.error(E)
 		return link_text
-#print(open_hyperlink('https://api.vk.com/method/messages.getHistory?v=5.41&access_token='+ access_token +'&peer_id=283620276&offset=0&count=10 ' , 'UTF-8'))
+#print(open_hyperlink('https://api.vk.com/method/messages.getHistory?v=5.41&access_token='+ access_token +'&peer_id=run_id&offset=0&count=10 ' , 'UTF-8'))
 
 def themes(type_): # type: 1 -rt rus, 2 - rt eng, 3 - bloomberg, 4 - inoSMI
 # выделяет темы для новостных источников
@@ -417,6 +423,22 @@ def ino_themes(arg):
 			break
 	return out
 
+def ria(arg): #разработка
+	num = arg[0]
+	logger = logging.getLogger('root.inosmi')
+	text = open_hyperlink('http://ria.ru/lenta/', 'UTF-8')
+	out = set()
+	k = skip(100, text, '<div class="b-list"><div class="b-list__item ">', death = '<div class="b-pager">')
+	while text != None and (len(set(out)) < num or num == 0):
+		k = skip(k, text, '<a href="', death = '<div class="b-pager">') + 9
+		if k < len(text):
+			j = skip(k, text, '"')
+			out.add('http://ria.ru' + text[k:j])
+			k = j
+		else:
+			break
+	return out
+	
 def head(i):
 # получение заголовка новости
 	text = open_hyperlink(i, 'UTF-8')
@@ -455,11 +477,18 @@ def receive():
 				all_clients.append(news(user_id))
 				setting_info(0, user_id)
 				active_client.append([user_id, 2])
-			elif i['body'][1:4] == 'top' and user_id == 283620276:
+			elif i['body'][1:4] == 'top' and user_id == run_id:
 				logger.info('programm stopped')
 				print('stop')
 				save()
-				return True
+				return [True, False]
+			elif i['body'][1:6] == 'pdate' and user_id == run_id:
+				update(i['body'][7:len(i['body'])])
+				update_now = True
+				logger.info('programm is updating')
+				print('update')
+				save()
+				return [True, True]
 			elif i['body'][1:6] == 'омощь' or i['body'][1:4] =='elp':
 				api.messages.send(user_id = user_id, message = 'кратко опишите проблему, и тех. поддержка с Вами обязательно свяжется')
 				active_client.append([user_id, 1])
@@ -477,7 +506,7 @@ def receive():
 					api.messages.send(user_id = user_id, message = 'команды ' + i['body'] + ' не существует')
 				elif active_client[number][1] == 1 and active_client[number][0] == user_id:
 					active_client.pop(number)
-					api.messages.send(user_id = '283620276', message = 'vk.com/id' + str(user_id) + ' : ' + i['body'])
+					api.messages.send(user_id = 'run_id', message = 'vk.com/id' + str(user_id) + ' : ' + i['body'])
 					api.messages.send(user_id = user_id, message = 'Ваше сообщение было отправлено тех. поддержке')
 				elif active_client[number][1] == 2 and active_client[number][0] == user_id:
 					inp = setting_check(0, i['body'])
@@ -493,7 +522,7 @@ def receive():
 							active_client.append([user_id, 4])
 						active_client.pop(number)
 					else:
-						api.messages.send(user_id = user_id, message = 'Выберите номера источников')
+						api.messages.send(user_id = user_id, message = 'Выберите корректные номера источников')
 					
 				elif active_client[number][1] == 3 and active_client[number][0] == user_id:
 					try:
@@ -533,22 +562,28 @@ def receive():
 							logger.info('all clients: %s', list(map(lambda x: x.n_print() + ' ', all_clients)))
 					except Exception as E:
 						logger.error('part 5 in setting: %s',E)
-		return False
+		return [False, False]
 	except Exception as E:
 		logger.error(E)
-		return False
+		return [False, False]
 	
 def save():
-	global all_clients
-#	f = open('clients.txt', 'w')
+	global all_clients, vips
+	f = open('clients.txt', 'w')
 	arr = ''
 	for i in all_clients:
 		temp = i.n_print()
 		if temp != None:
 			arr += '$' + temp
-	api.messages.send(user_id = '283620276', message = str(arr[1:len(arr)]))
-#	f.write(str(arr[1:len(arr)]))
-#	f.close()
+#	api.messages.send(user_id = 'run_id', message = str(arr[1:len(arr)]))
+	f.write(str(arr[1:len(arr)]))
+	f.close()
+	f = open('vips.txt', 'w')
+	arr = ''
+	for i in vips:
+		arr += '|' + i
+	f.write(str(arr[1:len(arr)]))
+	f.close()
 
 def global_read():
 	f = open('clients.txt')
@@ -559,11 +594,15 @@ def global_read():
 		newss = news(0)
 		newss.read(i)
 		all_clients.append(newss)
+	f.close()
+	f = open('vips.txt')
+	arr = f.read().split('|')
+	vips = map(lambda x: int(x), arr)
 
 def setting_info(part, uid):
 	if part == 0:
 		api.messages.send(user_id = uid, message = 'Выберите источники новостей (отправьте номера соответствующих источников, перечислив их через пробел в одном сообщении)\nНекоторые источники имеют возможность выбора категории новостей, если Вы хотите выбрать категорию(-и) укажите номер этого(этих) источника(-ов) с символом * (пример: 6*)')
-		api.messages.send(user_id = uid, message = '1 RT на русском главное\n2 RT на русском (возможность выбора категории)\n3 RT на английском главное\n 4 RT на английском (возможность выбора категории)\n5 Bloomberg главное\n6 Bloomberg (возможность выбора категории)\n7 ИноСМИ главное\n8 ИноСМИ (возможность выбора категории)')
+		api.messages.send(user_id = uid, message = '1 RT на русском главное\n2 RT на русском (возможность выбора категории)\n3 RT на английском главное\n 4 RT на английском (возможность выбора категории)\n5 Bloomberg главное\n6 Bloomberg (возможность выбора категории)\n7 ИноСМИ главное\n8 ИноСМИ (возможность выбора категории)\n 9 Риа новости главное')
 	elif part == 1:
 		api.messages.send(user_id = uid, message = 'Выберите категории источников (отправьте номера соответствующих категорий, перечислив их через пробел в одном сообщении)')
 	elif part == 2:
@@ -576,7 +615,7 @@ def setting_check(part,text,arr = []): # проверка ввода при на
 # проверяет, чтобы все номера, введённые пользователем соответствовали известным номерам
 # и генерирует двумерный массив, в 0-м элементе лежит массив номеров источников, а в 1-м номера элементов из массива на 0-й позиции,
 # к которым должны быть загружены категории
-		available = frozenset({1,2,3,4,5,6,7,8})
+		available = frozenset({1,2,3,4,5,6,7,8,9})
 		res = []
 		full = []
 		k = skip_to_int(0, text)
@@ -644,21 +683,22 @@ def setting_check(part,text,arr = []): # проверка ввода при на
 		else:
 			return None
 
+#you can rewrite auth function for sending your const token key or use your own auth group
 def auth(): # получение token'а
 	try:
-		session = vk.Session(access_token='5de02a02182d31e56e3cfa20e1789553dd5d7f7f14d9f4d24097776c805b1787eac43774725d17ad3097b')
+		session = vk.Session(access_token='5de02a02182d31e56e3cfa20e1789553dd5d7f7f14d9f4d24097776c805b1787eac43774725d17ad3097b') #here shuold be token of your auth group
 		api = vk.API(session)
 	except Exception as E:
 		logger.error(E)
-	api.messages.send(user_id = 283620276, message = 'ask')
+	api.messages.send(user_id = run_id, message = 'ask')
 	out = 0
 	while out == 0:
 		messages = api.messages.getDialogs(unanswered = 1)
 		for i in messages:
-			if (type(i) is int) or i['uid'] != 283620276:
+			if (type(i) is int) or i['uid'] != run_id:
 				continue
 			out = i['body']
-			api.messages.deleteDialog(user_id = 283620276)
+			api.messages.deleteDialog(user_id = run_id)
 		sleep(1)
 	del api
 	return out
@@ -689,8 +729,14 @@ def setting(uid, inp): # подкатегории
 	return gen
 logging.config.fileConfig('log_config_news')
 logger = logging.getLogger("root")
+logger.info(os.uname())
 logger.info("program started")
 print("program started")
+
+def update(code):
+	f = open('updator.py','w')
+	f.write('\n'.join(code.split('<br>')))
+	f.close()
 def login():
 	try:
 		session = vk.Session(access_token=access_token1)
@@ -705,11 +751,11 @@ access_token1 = auth()
 api = login()
 global_read()
 logger.info('all clients: %s', list(map(lambda x: x.n_print() + ' ', all_clients)))
-stop = False
+out = [False, False] # stop and update vars
 now = time()
 auto_login = time()
-while not(stop):
-	stop = receive()
+while not(out[0]):
+	out = receive()
 	if len(all_clients) > 0:
 		for i in all_clients:
 			i.check()
@@ -721,3 +767,5 @@ while not(stop):
 	if not(time() - auto_login < 600):
 		api = login()
 		auto_login = time()
+if out[1]:
+	import updator
