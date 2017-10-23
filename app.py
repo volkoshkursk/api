@@ -7,7 +7,6 @@ import logging
 import logging.config
 
 import os, vk
-import imp
 from time import *
 
 from all_skips import *
