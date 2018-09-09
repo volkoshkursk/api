@@ -3,18 +3,21 @@ import urllib
 import urllib.parse
 import urllib.request
 
-import logging
 import logging.config
 
 import os, vk
-from time import *
 
-from all_skips import *
+#from vk_group import *
+from vk_news import *
 
-run_id = 000000000
+run_id = 283620276
 active_client = []
 all_clients = []
+vk_gr_base = []
 vips = []
+messages = list()
+frozen = set()
+cache = list()
 class news:
 	def __init__(self, uid):
 		self.uid = uid
@@ -56,6 +59,11 @@ class news:
 				self.sources.append(ino_themes)
 				self.arg.append([0, i[1]])
 				used.add(8)
+			elif i[0] == 10:
+				self.sources.append(ria_themes)
+				self.arg.append([0, i[1]])
+				used.add(10)
+				
 		for i in self.sources_id.difference(used):
 			if i == 1 and anti_repeat[0]:
 				self.sources.append(rt)
@@ -80,10 +88,13 @@ class news:
 				self.arg.append([0])
 			elif i == 8:
 				self.sources.append(ino_themes)
-				self.arg.append([0], '')
+				self.arg.append([0, ''])
 			elif i == 9:
 				self.sources.append(ria)
 				self.arg.append([0])
+			elif i == 10:
+				self.sources.append(ria_themes)
+				self.arg.append([0, '/'])
 			
 		del used
 		log = logging.getLogger('root.news_class')
@@ -122,6 +133,10 @@ class news:
 				out += 'in'
 			elif i == ino_themes:
 				out += 'it'
+			elif i == ria:
+				out += 'ri'
+			elif i == ria_themes:
+				out += 'r1'
 		return out
 		
 	def decode(self,inp):
@@ -138,6 +153,10 @@ class news:
 				self.sources.append(ino)
 			elif inp[i:i+2] == 'it':
 				self.sources.append(ino_themes)
+			elif inp[i:i+2] == 'ri':
+				self.sources.append(ria)
+			elif inp[i:i+2] == 'r1':
+				self.sources.append(ria_themes)
 	
 	def read(self,inp):
 		# чтение сохранённых данных из строки
@@ -187,35 +206,6 @@ class news:
 		if self.active:
 			return(str(self.uid) + '|' + str(self.time) + '|' + str(self.period)+ '|'+ self.encode() + '|' + str(self.arg))
 
-def search(arr, el, beg, end, spec = True):
-	if len(arr) == 0:
-		return None
-	if spec:
-		i = (end - beg) // 2 + beg
-		if end - beg == 1 and arr[beg][0] != el:
-			return None
-		if el == arr[i][0]:
-			return i
-		elif el < arr[i][0]:
-			return search(arr, el, 0, i)
-		else:
-			return search(arr, el, i, len(arr))
-	else:
-		i = (end - beg) // 2 + beg
-		if end - beg == 1 and arr[beg].uid != el:
-			return None
-		if el == arr[i].uid:
-			return i
-		elif el < arr[i].uid:
-			return search(arr, el, 0, i, spec = False)
-		else:
-			return search(arr, el, i, len(arr), spec = False)
-
-def silly_search(arr, el):
-	for i in range(len(arr) - 1, -1, -1):
-		if arr[i].uid == el:
-			return i
-	return None
 def open_hyperlink(web_link, code):
 	op_hyp = logging.getLogger('root.open_hyperlink')
 	op_hyp.debug('link %s opened' , web_link)
@@ -232,7 +222,7 @@ def open_hyperlink(web_link, code):
 		return link_text
 #print(open_hyperlink('https://api.vk.com/method/messages.getHistory?v=5.41&access_token='+ access_token +'&peer_id=run_id&offset=0&count=10 ' , 'UTF-8'))
 
-def themes(type_): # type: 1 -rt rus, 2 - rt eng, 3 - bloomberg, 4 - inoSMI
+def themes(type_): # type: 1 -rt rus, 2 - rt eng, 3 - bloomberg, 4 - inoSMI, 5 - ria
 # выделяет темы для новостных источников
 # возвращает массив с парами ссылка - название
 #
@@ -279,6 +269,23 @@ def themes(type_): # type: 1 -rt rus, 2 - rt eng, 3 - bloomberg, 4 - inoSMI
 			j = skip(k, text, '<')
 			arr.append([text[k:j], link, 8])
 			k = skip(j,text,'href="', death = '</a></h3><div></div></div><script>') + 6
+			
+	elif type_ == 5:
+		text = open_hyperlink('http://ria.ru', 'UTF-8')
+		k = skip(skip(0, text, '<div class="b-main-nav">'),text,'href="', death = '<i></i></span></a></li></ul></div></div></div></div>') + 6
+		while k < len(text):
+			j = skip(k, text, '"')
+			link = text[k:j]
+			if (text[j+2:j+30] != 'class="b-main-nav__main-link'):
+				k = skip(j,text,'href="', death = '<i></i></span></a></li></ul></div></div></div></div>') + 6
+				continue
+			k = skip(j + 2, text, '<span>') + 6
+			if text[k] == '<':
+				k = skip(k, text, '</s>') + 4
+			j = skip(k, text, '<')
+#			if link[0] == 
+			arr.append([text[k:j], link, 10])
+			k = skip(j,text,'href="', death = '<i></i></span></a></li></ul></div></div></div></div>') + 6
 	return arr
 def rt(arg): # default: num = 0, lang = 'rus', end = '/news'
 	num = arg[0]
@@ -337,6 +344,8 @@ def name(a):
 		return [['Bloomberg', None]]
 	elif a == 4:
 		return [['ИноСМИ', None]]
+	elif a == 5:
+		return [['РИА Новости', None]]
 
 def bloomberg(arg): #default: num = 0, end = 'europe'
 	num = arg[0]
@@ -422,9 +431,9 @@ def ino_themes(arg):
 			break
 	return out
 
-def ria(arg): #разработка
+def ria(arg): #тест
 	num = arg[0]
-	logger = logging.getLogger('root.inosmi')
+	logger = logging.getLogger('root.ria')
 	text = open_hyperlink('http://ria.ru/lenta/', 'UTF-8')
 	out = set()
 	k = skip(100, text, '<div class="b-list"><div class="b-list__item ">', death = '<div class="b-pager">')
@@ -438,6 +447,26 @@ def ria(arg): #разработка
 			break
 	return out
 	
+def ria_themes(arg): #разработка
+	num = arg[0]
+	link = arg[1]
+	logger = logging.getLogger('root.ria_themes')
+	if link[0] == '/':
+		link = 'https://ria.ru' + link
+	text = open_hyperlink(link, 'UTF-8')
+	out = set()
+	k = skip(100, text, '<div class="b-list"><div class="b-list__item ">', death = '<div class="b-pager">')
+	while text != None and (len(set(out)) < num or num == 0):
+		k = skip(k, text, '<a href="', death = '<div class="b-pager">') + 9
+		if k < len(text):
+			j = skip(k, text, '"')
+			out.add('http://ria.ru' + text[k:j])
+			k = j
+		else:
+			break
+	return out
+
+
 def head(i):
 # получение заголовка новости
 	text = open_hyperlink(i, 'UTF-8')
@@ -452,21 +481,24 @@ def send(user_id, arr):
 			logger.error('%s with ' + i, E)
 			
 def receive():
-	global active_client
+	global active_client, vk_gr_base, frozen, cache, messages
 	logger = logging.getLogger('root.receive')
 #	sleep(0.3)
 	try:
-		messages = api.messages.getDialogs(unanswered = 1)
-		logger.debug(messages)
+		messages_ = api.messages.getDialogs(unanswered = 1)
+		logger.debug(messages_)
 	except Exception as E:
 		logger.error(E)
 	try:
-		for i in messages:
-			if type(i) is int:
-				continue
+		for inp in messages_['items']:
+#			if type(i) is int:
+#				continue
 #			print(messages)
-			user_id = i['uid']
-			api.messages.markAsAnsweredDialog(peer_id = user_id,answered = 1)
+			i = inp['message']
+			user_id = i['user_id']
+			if user_id in frozen:
+				continue
+			api.messages.markAsAnsweredConversation(peer_id = user_id,answered = 1)
 			api.messages.markAsRead(peer_id = user_id)
 			if i['body'][1:9] == 'астроить' or i['body'][1:3] == 'et' or i['body'][1:9] == 'астройка':
 				num = search(all_clients, user_id, 0, len(all_clients), spec = False)
@@ -476,7 +508,9 @@ def receive():
 				all_clients.append(news(user_id))
 				setting_info(0, user_id)
 				active_client.append([user_id, 2])
+#				(messages, frozen, cache) = message(api, messages, frozen, [user_id], 'раздел в разработке', cache)
 			elif i['body'][1:4] == 'top' and user_id == run_id:
+				api.messages.send(user_id = run_id, message = 'programm stopped')
 				logger.info('programm stopped')
 				print('stop')
 				save()
@@ -489,7 +523,8 @@ def receive():
 				save()
 				return [True, True]
 			elif i['body'][1:6] == 'омощь' or i['body'][1:4] =='elp':
-				api.messages.send(user_id = user_id, message = 'кратко опишите проблему, и тех. поддержка с Вами обязательно свяжется')
+#				api.messages.send(user_id = user_id, message = 'кратко опишите проблему, и тех. поддержка с Вами обязательно свяжется')
+				(messages, frozen, cache) = message(api, messages, frozen, [user_id], 'кратко опишите проблему, и тех. поддержка с Вами обязательно свяжется', cache)
 				active_client.append([user_id, 1])
 			elif i['body'][1:10] == 'нструкции' or i['body'][1:6] == 'anual':
 				api.messages.send(user_id = user_id, message = 'Ниже приведены команды и их значения:\nПомощь/Help - написать в тех. поддержку\nНастроить/Настройка/Set - настроить параметры получения новостей\nИнструкции/Manual - получить это сообщение\nОтключить/Off - отключить получение новостей\n\nЕсли у Вас остались вопросы по пользованию сервисом или если у Вас есть пожелания - напишите нам (через помощь, либо через контакты группы)')
@@ -505,7 +540,7 @@ def receive():
 					api.messages.send(user_id = user_id, message = 'команды ' + i['body'] + ' не существует')
 				elif active_client[number][1] == 1 and active_client[number][0] == user_id:
 					active_client.pop(number)
-					api.messages.send(user_id = 'run_id', message = 'vk.com/id' + str(user_id) + ' : ' + i['body'])
+					api.messages.send(user_id = run_id, message = 'vk.com/id' + str(user_id) + ' : ' + i['body'])
 					api.messages.send(user_id = user_id, message = 'Ваше сообщение было отправлено тех. поддержке')
 				elif active_client[number][1] == 2 and active_client[number][0] == user_id:
 					inp = setting_check(0, i['body'])
@@ -527,7 +562,7 @@ def receive():
 					try:
 						arr = setting_check(1, i['body'], active_client[number][2])
 						if arr == None:
-							api.messages.send(user_id = user_id, message = 'Выберите номера источников')
+							api.messages.send(user_id = user_id, message = 'Выберите корректные номера источников')
 						else:
 							all_clients[silly_search(all_clients, user_id)].set_arg(arr)
 							setting_info(2, user_id)
@@ -561,13 +596,15 @@ def receive():
 							logger.info('all clients: %s', list(map(lambda x: x.n_print() + ' ', all_clients)))
 					except Exception as E:
 						logger.error('part 5 in setting: %s',E)
+									
 		return [False, False]
 	except Exception as E:
 		logger.error(E)
+		print('programm error')
 		return [False, False]
 	
 def save():
-	global all_clients, vips
+	global all_clients, vips, vk_gr_base
 	f = open('clients.txt', 'w')
 	arr = ''
 	for i in all_clients:
@@ -583,25 +620,35 @@ def save():
 		arr += '|' + i
 	f.write(str(arr[1:len(arr)]))
 	f.close()
+	
+	f = open('vk.txt', 'w')
+	arr = ''
+	for i in vk_gr_base:
+		temp = i.n_print()
+		if temp != None:
+			arr += '$' + temp
+	f.write(str(arr[1:len(arr)]))
+	f.close()
 
 def global_read():
 	f = open('clients.txt')
 	arr = f.read().split('$')
-	if len(arr) == 1 and len(arr[0]) == 0:
-		return
-	for i in arr:
-		newss = news(0)
-		newss.read(i)
-		all_clients.append(newss)
+	if not(len(arr) == 1 and len(arr[0]) == 0):
+		for i in arr:
+			newss = news(0)
+			newss.read(i)
+			all_clients.append(newss)
 	f.close()
 	f = open('vips.txt')
 	arr = f.read().split('|')
-	vips = map(lambda x: int(x), arr)
+	if not(len(arr) == 1 and len(arr[0]) == 0):
+		vips = set(map(lambda x: int(x), arr))
+	f.close()
 
 def setting_info(part, uid):
 	if part == 0:
 		api.messages.send(user_id = uid, message = 'Выберите источники новостей (отправьте номера соответствующих источников, перечислив их через пробел в одном сообщении)\nНекоторые источники имеют возможность выбора категории новостей, если Вы хотите выбрать категорию(-и) укажите номер этого(этих) источника(-ов) с символом * (пример: 6*)')
-		api.messages.send(user_id = uid, message = '1 RT на русском главное\n2 RT на русском (возможность выбора категории)\n3 RT на английском главное\n 4 RT на английском (возможность выбора категории)\n5 Bloomberg главное\n6 Bloomberg (возможность выбора категории)\n7 ИноСМИ главное\n8 ИноСМИ (возможность выбора категории)\n 9 Риа новости главное')
+		api.messages.send(user_id = uid, message = '1 RT на русском главное\n2 RT на русском (возможность выбора категории)\n3 RT на английском главное\n 4 RT на английском (возможность выбора категории)\n5 Bloomberg главное\n6 Bloomberg (возможность выбора категории)\n7 ИноСМИ главное\n8 ИноСМИ (возможность выбора категории)\n 9 РИА Новости главное')
 	elif part == 1:
 		api.messages.send(user_id = uid, message = 'Выберите категории источников (отправьте номера соответствующих категорий, перечислив их через пробел в одном сообщении)')
 	elif part == 2:
@@ -614,7 +661,7 @@ def setting_check(part,text,arr = []): # проверка ввода при на
 # проверяет, чтобы все номера, введённые пользователем соответствовали известным номерам
 # и генерирует двумерный массив, в 0-м элементе лежит массив номеров источников, а в 1-м номера элементов из массива на 0-й позиции,
 # к которым должны быть загружены категории
-		available = frozenset({1,2,3,4,5,6,7,8,9})
+		available = frozenset({1,2,3,4,5,6,7,8,9,10})
 		res = []
 		full = []
 		k = skip_to_int(0, text)
@@ -686,7 +733,7 @@ def setting_check(part,text,arr = []): # проверка ввода при на
 def auth(): # получение token'а
 	try:
 		session = vk.Session(access_token='5de02a02182d31e56e3cfa20e1789553dd5d7f7f14d9f4d24097776c805b1787eac43774725d17ad3097b') #here shuold be token of your auth group
-		api = vk.API(session)
+		api = vk.API(session, v = 4.8, timeout = 20)
 	except Exception as E:
 		logger.error(E)
 	api.messages.send(user_id = run_id, message = 'ask')
@@ -694,13 +741,27 @@ def auth(): # получение token'а
 	while out == 0:
 		messages = api.messages.getDialogs(unanswered = 1)
 		for i in messages:
-			if (type(i) is int) or i['uid'] != run_id:
+			if type(i) is int:
+				continue
+			if  i['uid'] != run_id:
 				continue
 			out = i['body']
 			api.messages.deleteDialog(user_id = run_id)
 		sleep(1)
+	api.messages.send(user_id = run_id, message = 'ask_user')
+	outt = []
+	while len(outt) == 0:
+		messages = api.messages.getDialogs(unanswered = 1)
+		for i in messages:
+			if type(i) is int:
+				continue
+			if  i['uid'] != run_id:
+				continue
+			outt = i['body'].split(' ')
+			api.messages.deleteDialog(user_id = run_id)
+		sleep(1)
 	del api
-	return out
+	return (out, outt)
 	
 def setting(uid, inp): # подкатегории
 # на вход получает user id (из vk) и массив из setting_check(0,...)(многомерный). В 0 позиции лежит массив кодов источников,
@@ -726,6 +787,7 @@ def setting(uid, inp): # подкатегории
 		except Exception as E:
 			logger.error(E)
 	return gen
+
 logging.config.fileConfig('log_config_news')
 logger = logging.getLogger("root")
 logger.info(os.uname())
@@ -733,31 +795,45 @@ logger.info("program started")
 print("program started")
 
 def update(code):
-	f = open('updator.py','w')
-	f.write('\n'.join(code.split('<br>')))
-	f.close()
+	url = docs.getById(docs=code)['url']
+#	f = open('updator.py','w')
+#	f.write('\n'.join(code.split('<br>')))
+#	f.close()
+
+	
 def login(inp):
 	try:
 		session = vk.Session(access_token=inp[0])
-		api = vk.API(session, v = 3.20, timeout = 20)
+		api = vk.API(session, v = 5.23, timeout = 20)
+		u_session = vk.AuthSession(scope='groups, wall, friends', app_id=inp[1][0], user_login=inp[1][1], user_password=inp[1][2]) 
+		u_api = vk.API(u_session, v = 5.23, timeout = 20)
 	except Exception as E:
 		logger.error(E)
-	return api
-
+	return (api, u_api)
+	
 #arr = ino([0,''])
 
-access_token1 = auth()
-api = login()
+(api, u_api) = login(auth())
+#print(api)
+#print(u_api)
 global_read()
 logger.info('all clients: %s', list(map(lambda x: x.n_print() + ' ', all_clients)))
+logger.info('vk: %s', list(map(lambda x: x.n_print() + ' ', vk_gr_base)))
 out = [False, False] # stop and update vars
 now = time()
 auto_login = time()
 while not(out[0]):
+	
 	out = receive()
-	if len(all_clients) > 0:
-		for i in all_clients:
-			i.check()
+#	if len(all_clients) > 0:
+	for i in all_clients:
+		i.check()
+	if vk_gr_base:
+		logger = logging.getLogger('root.vk_check')
+		try:
+			(vk_gr_base, cache, messages, frozen) = vk_check(vk_gr_base, api, cache, messages, frozen)
+		except Exception as e:
+			logger.error(e)
 	if (time() - now) < 0.3:
 		sleep(0.3 - (time() - now))
 		now = time()
@@ -767,4 +843,7 @@ while not(out[0]):
 		api = login()
 		auto_login = time()
 if out[1]:
-	import updator
+	try:
+		import updator
+	except Exception as e:
+		logger.error('updator:'+ str(e))
