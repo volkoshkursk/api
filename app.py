@@ -736,10 +736,10 @@ def update(code):
 	f = open('updator.py','w')
 	f.write('\n'.join(code.split('<br>')))
 	f.close()
-def login():
+def login(inp):
 	try:
-		session = vk.Session(access_token=access_token1)
-		api = vk.API(session)
+		session = vk.Session(access_token=inp[0])
+		api = vk.API(session, v = 3.20, timeout = 20)
 	except Exception as E:
 		logger.error(E)
 	return api
