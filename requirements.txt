@@ -1,1 +1,1 @@
-pip install vk
+voronind/vk
